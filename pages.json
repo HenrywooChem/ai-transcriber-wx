@@ -1,7 +1,8 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/tasks/tasks"
+    "pages/tasks/tasks",
+    "pages/webview/webview"
   ],
   "window": {
     "backgroundTextStyle": "light",
