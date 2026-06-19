@@ -73,7 +73,7 @@ export default {
       tasks: [],
       loading: false,
       polling: false,
-      API_BASE: 'http://124.221.77.205:8001/api'
+      API_BASE: 'https://ai4u.site/api'
     }
   },
   onLoad() {

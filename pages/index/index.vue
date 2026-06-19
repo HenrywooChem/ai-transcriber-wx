@@ -77,7 +77,7 @@ export default {
       loading: false,
       tips: '',
       // API 配置 - 请根据实际部署修改
-      API_BASE: 'http://124.221.77.205:8001/api'
+      API_BASE: 'https://ai4u.site/api'
     }
   },
   onLoad() {
