@@ -35,6 +35,16 @@
 
     <!-- ====== 已登录：显示转录功能 ====== -->
     <template v-else>
+      <!-- 额度显示 -->
+      <view class="quota-bar" @click="showQuotaHint">
+        <text class="quota-icon">⏱</text>
+        <text class="quota-text" v-if="quotaLoading">加载中...</text>
+        <text class="quota-text" v-else>
+          剩余 <text :style="{color: quotaColor, fontWeight:'700'}">{{ quotaMinutes }}</text> 分钟
+        </text>
+        <text class="quota-sign" v-if="canCheckin" @click.stop="doCheckin">✅ 签到</text>
+      </view>
+
       <!-- Tab 切换 -->
       <view class="tabs">
         <view class="tab-item" :class="{active: activeTab === 'url'}" @click="activeTab = 'url'">链接转录</view>
@@ -95,6 +105,11 @@ export default {
       authConfirm: '',
       authLoading: false,
       authError: '',
+      // 额度
+      quotaMinutes: 30,
+      quotaLoading: true,
+      quotaColor: '#22c55e',
+      canCheckin: false,
       // 转录
       activeTab: 'url',
       videoUrl: '',
@@ -109,7 +124,11 @@ export default {
     if (token) {
       this.authToken = token;
       this.isLoggedIn = true;
+      this.loadQuota();
     }
+  },
+  onShow() {
+    if (this.isLoggedIn) this.loadQuota();
   },
   methods: {
     // ======== 认证 ========
@@ -201,6 +220,8 @@ export default {
           setTimeout(() => { uni.switchTab({ url: '/pages/tasks/tasks' }); }, 800);
         } else if (res.statusCode === 401) {
           this.handleAuthExpired();
+        } else if (res.statusCode === 402) {
+          uni.showToast({ title: '⚠️ 免费额度已用尽，请去官网签到或购买', icon: 'none' });
         } else {
           throw new Error(res.data.detail || '提交失败');
         }
@@ -229,6 +250,7 @@ export default {
             success: (res) => {
               const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
               if (data.task_id) resolve(data);
+              else if (res.statusCode === 402) reject(new Error('免费额度已用尽，请去官网签到或购买'));
               else reject(new Error(data.detail || '上传失败'));
             },
             fail: reject
@@ -256,6 +278,55 @@ export default {
       uni.removeStorageSync(STORAGE_KEY);
       uni.removeStorageSync(USER_KEY);
       uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' });
+    },
+
+    // ======== 额度 ========
+    async loadQuota() {
+      try {
+        const res = await uni.request({
+          url: `${API_BASE}/quota`,
+          method: 'GET',
+          header: { 'Authorization': 'Bearer ' + this.authToken }
+        });
+        if (res.statusCode === 200 && res.data) {
+          const d = res.data;
+          this.quotaMinutes = (d.available_minutes || 0).toFixed(1);
+          this.canCheckin = d.can_checkin;
+          if (this.quotaMinutes < 5) this.quotaColor = '#ef4444';
+          else if (this.quotaMinutes < 15) this.quotaColor = '#f59e0b';
+          else this.quotaColor = '#22c55e';
+        }
+      } catch (e) {
+        console.error('加载额度失败', e);
+      } finally {
+        this.quotaLoading = false;
+      }
+    },
+
+    async doCheckin() {
+      try {
+        const res = await uni.request({
+          url: `${API_BASE}/checkin`,
+          method: 'POST',
+          header: { 'Authorization': 'Bearer ' + this.authToken }
+        });
+        if (res.statusCode === 200 && res.data.success) {
+          uni.showToast({ title: '🎉 ' + res.data.message, icon: 'success' });
+          this.loadQuota();
+        } else {
+          uni.showToast({ title: res.data.message || '签到失败', icon: 'none' });
+        }
+      } catch (e) {
+        uni.showToast({ title: '签到失败', icon: 'none' });
+      }
+    },
+
+    showQuotaHint() {
+      uni.showToast({
+        title: `剩余 ${this.quotaMinutes} 分钟 · 每日签到+5分钟 · 每月${30}分钟免费`,
+        icon: 'none',
+        duration: 3000
+      });
     }
   }
 }
@@ -400,4 +471,27 @@ export default {
   text-align: center;
 }
 .auth-error text { font-size: 26rpx; color: #dc3545; }
+
+/* 额度栏 */
+.quota-bar {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  margin: 0 20rpx 20rpx;
+  padding: 20rpx 28rpx;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.08);
+  gap: 12rpx;
+}
+.quota-icon { font-size: 36rpx; }
+.quota-text { flex: 1; font-size: 28rpx; color: #333; }
+.quota-sign {
+  padding: 8rpx 20rpx;
+  background: #d4edda;
+  color: #155724;
+  border-radius: 20rpx;
+  font-size: 24rpx;
+  font-weight: 500;
+}
+
 </style>
